@@ -8,8 +8,10 @@ import { printPS } from '../../print';
 import { ModalNuevoPS } from './ModalNuevoPS';
 import { ModalDetallePS } from './ModalDetallePS';
 
-function ModuloPazSalvo({ t, subview, setSubview, showNew, setShowNew }) {
-  const [pazSalvos,setPazSalvos]=useState(MOCK_PS);
+function ModuloPazSalvo({ t, subview, setSubview, showNew, setShowNew, pazSalvos: pazSalvosProp, setPazSalvos: setPazSalvosProp }) {
+  const [pazSalvosLocal,setPazSalvosLocal]=useState(MOCK_PS);
+  const pazSalvos = pazSalvosProp || pazSalvosLocal;
+  const setPazSalvos = setPazSalvosProp || setPazSalvosLocal;
   const [selected,setSelected]=useState(null);
   const [search,setSearch]=useState(""); const [filtro,setFiltro]=useState("ACTIVOS"); const [fechaF,setFechaF]=useState("");
 

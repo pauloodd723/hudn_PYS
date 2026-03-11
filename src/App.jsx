@@ -2,9 +2,11 @@ import { useState } from 'react';
 import { MOCK_PS, MOCK_PC } from './data/mockData';
 import { LIGHT, DARK } from './theme';
 import { Icon } from './components/ui';
-import { LoginScreen } from './components/shared';
+import { LoginScreen, PaginaValidacion, ListaValidaciones } from './components/shared';
 import { ModuloPazSalvo } from './modules/PazYSalvo';
 import { ModuloPermisos } from './modules/Permisos';
+import { AREAS_PS } from './constants';
+import { USERS } from './constants/users';
 
 export default function App() {
   const [darkMode,setDarkMode]=useState(false);
@@ -16,10 +18,36 @@ export default function App() {
   const [showNewPS,setShowNewPS]=useState(false);
   const [showNewPC,setShowNewPC]=useState(false);
   const [sideOpen,setSideOpen]=useState(false);
+  const [validarPsId,setValidarPsId]=useState(null); // psId cuando viene del link del correo
+  const [pazSalvosState,setPazSalvosState]=useState(MOCK_PS); // estado global de PS
   const t=darkMode?DARK:LIGHT;
 
-  const canPS = !user || user.role==="paz_salvo" || user.role==="guest";
-  const canPC = !user || user.role==="permisos"  || user.role==="guest";
+  // Cuando el usuario llega con token en URL (desde correo), parsear token local
+  const handleValidarLink = (token, psId) => {
+    // En modo frontend puro: el token lleva el areaId codificado en base64 (no JWT real)
+    // Buscamos el usuario por areaId que venga en el token
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      const found = USERS.find(u => u.areaId === payload.areaId);
+      if (found) { setUser(found); setValidarPsId(psId); }
+    } catch(e) { setValidarPsId(psId); }
+  };
+
+  const handleValidarPS = (ps, areaId, obs) => {
+    setPazSalvosState(prev => prev.map(p => {
+      if (p.id !== ps.id) return p;
+      const newVals = p.validaciones.map(v =>
+        (v.areaId === areaId || v.area_id === areaId)
+          ? { ...v, estado: 'VALIDADO', fecha: new Date().toISOString().split('T')[0] }
+          : v
+      );
+      const allDone = newVals.every(v => v.estado === 'VALIDADO');
+      return { ...p, validaciones: newVals, estado: allDone ? 'VALIDADO' : 'EN_TRAMITE' };
+    }));
+  };
+
+  const canPS = !user || user.role==="paz_salvo"; // validador NO tiene acceso al dashboard
+  const canPC = !user || user.role==="permisos";  // validador NO tiene acceso al dashboard
   const effectiveView = (!canPS&&canPC)?"pc":(!canPC&&canPS)?"ps":view;
 
   const navTo=(mod,sub)=>{
@@ -56,7 +84,7 @@ export default function App() {
           <div style={{width:34,height:34,borderRadius:"50%",background:t.accentBg,border:`1.5px solid ${t.accent}44`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:800,color:t.accent,flexShrink:0}}>{user.avatar}</div>
           <div style={{flex:1,overflow:"hidden"}}>
             <div style={{fontSize:12,fontWeight:700,color:t.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{user.nombre}</div>
-            <div style={{fontSize:10,color:t.textMuted}}>{user.role==="paz_salvo"?"Paz y Salvo":user.role==="permisos"?"Permisos y Claves":"Acceso Completo"}</div>
+            <div style={{fontSize:10,color:t.textMuted}}>{user.role==="paz_salvo"?"Paz y Salvo":user.role==="permisos"?"Permisos y Claves":user.role==="validador"?user.areaNombre||"Validador":"Acceso Completo"}</div>
           </div>
         </div>
       )}
@@ -158,7 +186,51 @@ export default function App() {
     </div>
   );
 
-  if(!user) return <LoginScreen onLogin={u=>{setUser(u);setView(u.role==="permisos"?"pc":"ps");setSubview("dashboard");}} darkMode={darkMode} setDarkMode={setDarkMode} t={t}/>;
+  // Página de validación (desde link de correo)
+  // ── Rol VALIDADOR: ve lista de TODOS sus PS, nunca el dashboard ─────────────
+  if(user && user.role === "validador") {
+    // Si viene con un psId específico (link del correo) → abrir directo ese PS
+    if(validarPsId) {
+      const psTarget = pazSalvosState.find(p => p.id === validarPsId);
+      if(psTarget) {
+        return <PaginaValidacion
+          ps={psTarget}
+          user={user}
+          t={t}
+          onValidar={(ps, areaId, obs) => { handleValidarPS(ps, areaId, obs); setValidarPsId(null); }}
+          onBack={() => setValidarPsId(null)}
+        />;
+      }
+    }
+    // Sin psId específico → mostrar lista de todos los PS que le conciernen
+    return <ListaValidaciones
+      user={user}
+      pazSalvos={pazSalvosState}
+      t={t}
+      onValidar={handleValidarPS}
+      onCerrarSesion={() => { setUser(null); setValidarPsId(null); }}
+    />;
+  }
+
+  // ── Rol con validarPsId (link del correo, ya autenticado) ────────────────
+  if(user && validarPsId) {
+    const psToValidate = pazSalvosState.find(p => p.id === validarPsId) || pazSalvosState[0];
+    return <PaginaValidacion
+      ps={psToValidate}
+      user={user}
+      t={t}
+      onValidar={(ps, areaId, obs) => { handleValidarPS(ps, areaId, obs); }}
+      onBack={() => { setValidarPsId(null); setView(user.role==="permisos"?"pc":"ps"); setSubview("dashboard"); }}
+    />;
+  }
+
+  if(!user) return <LoginScreen
+    onLogin={u=>{
+      if(u.role === "validador") { setUser(u); return; } // validador → directo a PaginaValidacion
+      setUser(u); setView(u.role==="permisos"?"pc":"ps"); setSubview("dashboard");
+    }}
+    darkMode={darkMode} setDarkMode={setDarkMode} t={t}
+  />;
 
   return (
     <div style={{minHeight:"100vh",background:t.bg,fontFamily:"'DM Sans',sans-serif",color:t.text}}>
@@ -225,7 +297,7 @@ export default function App() {
             <Icon name="plus" size={15}/>Nuevo
           </button>
         </div>
-        {effectiveView==="ps"&&canPS&&<ModuloPazSalvo t={t} subview={subview} setSubview={setSubview} showNew={showNewPS} setShowNew={setShowNewPS}/>}
+        {effectiveView==="ps"&&canPS&&<ModuloPazSalvo t={t} subview={subview} setSubview={setSubview} showNew={showNewPS} setShowNew={setShowNewPS} pazSalvos={pazSalvosState} setPazSalvos={setPazSalvosState}/>}
         {effectiveView==="pc"&&canPC&&<ModuloPermisos t={t} subview={subview} setSubview={setSubview} showNew={showNewPC} setShowNew={setShowNewPC}/>}
       </main>
     </div>
