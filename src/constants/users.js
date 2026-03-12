@@ -26,7 +26,7 @@ const USERS = [
   { id:"admin@hospital.com",             password:"admin123",          role:"validador", nombre:"German Cifuentes Villota",           avatar:"AD", areaId:16, areaNombre:"ADMINISTRATIVO Y FINANCIERO",            orden:3 },
   { id:"prestacion@hospital.com",        password:"prestacion123",     role:"validador", nombre:"Carlos Arellano",                    avatar:"PS", areaId:17, areaNombre:"PRESTACIÓN DE SERVICIOS",                orden:3 },
   // Etapa 4
-  { id:"gerencia@hospital.com",          password:"gerencia123",       role:"validador", nombre:"Antonio Jose Veira Del Castillo",    avatar:"GE", areaId:18, areaNombre:"GERENCIA",                              orden:4 },
+  { id:"gerencia@hospital.com",          password:"gerencia1234",       role:"validador", nombre:"Antonio Jose Veira Del Castillo",    avatar:"GE", areaId:18, areaNombre:"GERENCIA",                              orden:4 },
 ];
 
 export { USERS };
